@@ -24,7 +24,9 @@ The currency can be changed in the [config file](config.yml) .
 The script:
 
 - retrieves balance data from an ETH2 beacon node, using the
- parameters specified in [config.yml](config.yml) . 
+ parameters specified in [config.yml](config.yml) .
+ If you're running a Prysm beacon node, make sure
+ to set the `PRYSM_API` config option to True.
 - pulls corresponding price data from CoinGecko
 - combines and writes these into a CSV file called `rewards_{ADDRESS}.csv` 
 
