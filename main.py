@@ -5,6 +5,8 @@ import math
 import sys
 from collections import namedtuple
 from multiprocessing.pool import ThreadPool
+import codecs
+from base64 import b64encode
 
 import requests
 from pycoingecko import CoinGeckoAPI
@@ -32,18 +34,32 @@ def get_datapoint(input: list) -> DataPoint:
     slot, address = input
     host = config["BEACON_NODE"]["HOST"]
     port = config["BEACON_NODE"]["PORT"]
+    prysm_api = config["BEACON_NODE"]["PRYSM_API"]
 
     logger.debug(f"Getting data for slot {slot}, public key {address}")
-    resp = requests.get(
-        f"http://{host}:{port}/eth/v1/beacon/states/{slot}/validators/{address}"
-    )
+    if prysm_api:
+        encoded_pubkey = b64encode(codecs.decode(address[2:], "hex"))
+        epoch_for_slot = math.floor(slot / SLOTS_IN_EPOCH)
+
+        resp = requests.get(
+            f"http://{host}:{port}/eth/v1alpha1/validators/balances",
+            params={"epoch": epoch_for_slot, "publicKeys": encoded_pubkey},
+        )
+    else:
+        resp = requests.get(
+            f"http://{host}:{port}/eth/v1/beacon/states/{slot}/validator_balances",
+            params={"id": address},
+        )
 
     if resp.status_code != 200:
         raise Exception("Beacon node returned non-200 status code")
 
-    data = resp.json()["data"]
+    if prysm_api:
+        data = resp.json()["balances"][0]
+    else:
+        data = resp.json()["data"][0]
 
-    slot_datetime = GENESIS_DATETIME + datetime.timedelta(seconds=slot * 12)
+    slot_datetime = GENESIS_DATETIME + datetime.timedelta(seconds=slot * SLOT_TIME)
     balance = int(data["balance"]) / 1000000000
 
     return DataPoint(datetime=slot_datetime, balance=balance)

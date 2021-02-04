@@ -18,6 +18,9 @@ BEACON_NODE:
   HOST: localhost
   # Enter the HTTP port of the beacon node
   PORT: 5052
+  # Set this to True if running a Prysm beacon node (it uses a different API)
+  # Should be False for Lighthouse, Teku
+  PRYSM_API: False
   # The amount of concurrent requests to make to the beacon node
   # (making more than 1 request at once makes things faster, but is
   # also more demanding on your beacon node)
