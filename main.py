@@ -28,6 +28,16 @@ logger = logging.getLogger()
 with open("config.yml") as f:
     config = safe_load(f)
 
+# Retry all HTTP requests a few times with exponential backoff
+s = requests.Session()
+
+retries = Retry(total=5,
+                backoff_factor=1,
+                status_forcelist=[413, 429, 500, 503],
+                raise_on_status=False)
+
+s.mount('http://', HTTPAdapter(max_retries=retries))
+
 
 def get_datapoint(input: list) -> DataPoint:
     """Returns a DataPoint for the specified slot and address."""
@@ -35,16 +45,6 @@ def get_datapoint(input: list) -> DataPoint:
     host = config["BEACON_NODE"]["HOST"]
     port = config["BEACON_NODE"]["PORT"]
     prysm_api = config["BEACON_NODE"]["PRYSM_API"]
-
-    # Retry a few times with exponential backoff
-    s = requests.Session()
-
-    retries = Retry(total=5,
-                    backoff_factor=1,
-                    status_forcelist=[500],
-                    raise_on_status=False)
-
-    s.mount('http://', HTTPAdapter(max_retries=retries))
 
     logger.debug(f"Getting data for slot {slot}, public key {address}")
     if prysm_api:
@@ -150,7 +150,7 @@ def write_rewards_to_file(datapoint_dict: dict):
             total_income_curr = 0
             for dp in datapoints:
                 try:
-                    resp = requests.get(f"https://api.coingecko.com/api/v3/coins/ethereum/history", params={
+                    resp = s.get(f"https://api.coingecko.com/api/v3/coins/ethereum/history", params={
                         "date": dp.datetime.strftime(format="%d-%m-%Y")
                     })
                     cg_data = resp.json()
