@@ -52,7 +52,10 @@ def get_datapoint(input: list) -> DataPoint:
         )
 
     if resp.status_code != 200:
-        raise Exception("Beacon node returned non-200 status code")
+        logger.error(resp.content.decode())
+        raise Exception(
+            f"Beacon node returned non-200 status code for request {resp.request.url}"
+        )
 
     if prysm_api:
         data = resp.json()["balances"][0]
