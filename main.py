@@ -11,7 +11,6 @@ from base64 import b64encode
 import requests
 from urllib3.util.retry import Retry
 from requests.adapters import HTTPAdapter
-from pycoingecko import CoinGeckoAPI
 from tqdm import tqdm
 from yaml import safe_load
 
@@ -25,7 +24,6 @@ logging.basicConfig(
 )
 
 logger = logging.getLogger()
-cg = CoinGeckoAPI()
 
 with open("config.yml") as f:
     config = safe_load(f)
@@ -151,9 +149,14 @@ def write_rewards_to_file(datapoint_dict: dict):
             total_income_eth = 0
             total_income_curr = 0
             for dp in datapoints:
-                cg_data = cg.get_coin_history_by_id(
-                    "ethereum", date=dp.datetime.strftime(format="%d-%m-%Y")
-                )
+                try:
+                    resp = requests.get(f"https://api.coingecko.com/api/v3/coins/ethereum/history", params={
+                        "date": dp.datetime.strftime(format="%d-%m-%Y")
+                    })
+                    cg_data = resp.json()
+                except Exception as e:
+                    logger.error("Something went wrong while fetching price data from CoinGecko")
+                    raise e
                 eth_price = cg_data["market_data"]["current_price"][currency.lower()]
 
                 income_for_date_eth = dp.balance - prev_balance

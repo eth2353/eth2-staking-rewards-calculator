@@ -16,10 +16,6 @@ idna==2.10 \
     --hash=sha256:b307872f855b18632ce0c21c5e45be78c0ea7ae4c15c828c20788b26921eb3f6 \
     --hash=sha256:b97d804b1e9b523befed77c48dacec60e6dcb0b5391d57af6a65a312a90648c0
     # via requests
-pycoingecko==1.4.0 \
-    --hash=sha256:082949e83b49ab89090d19b88b6177c9458679dc4a98323db950bd4cef7afa2e \
-    --hash=sha256:bc6e2d87a59bda88bd01a241b37d49c30104842534fdf65ba96616c90419d756
-    # via -r requirements.in
 pyyaml==5.4.1 \
     --hash=sha256:08682f6b72c722394747bddaf0aa62277e02557c0fd1c42cb853016a38f8dedf \
     --hash=sha256:0f5f5786c0e09baddcd8b4b45f20a7b5d61a7e7e99846e3c799b05c7c53fa696 \
@@ -46,9 +42,7 @@ pyyaml==5.4.1 \
 requests==2.25.1 \
     --hash=sha256:27973dd4a904a4f13b263a19c866c13b92a39ed1c964655f025f3f8d3d75b804 \
     --hash=sha256:c210084e36a42ae6b9219e00e48287def368a26d03a048ddad7bfee44f75871e
-    # via
-    #   -r requirements.in
-    #   pycoingecko
+    # via -r requirements.in
 tqdm==4.56.0 \
     --hash=sha256:4621f6823bab46a9cc33d48105753ccbea671b68bab2c50a9f0be23d4065cb5a \
     --hash=sha256:fe3d08dd00a526850568d542ff9de9bbc2a09a791da3c334f3213d8d0bbbca65
