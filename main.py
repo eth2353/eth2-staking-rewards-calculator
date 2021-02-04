@@ -9,6 +9,8 @@ import codecs
 from base64 import b64encode
 
 import requests
+from urllib3.util.retry import Retry
+from requests.adapters import HTTPAdapter
 from pycoingecko import CoinGeckoAPI
 from tqdm import tqdm
 from yaml import safe_load
@@ -36,25 +38,35 @@ def get_datapoint(input: list) -> DataPoint:
     port = config["BEACON_NODE"]["PORT"]
     prysm_api = config["BEACON_NODE"]["PRYSM_API"]
 
+    # Retry a few times with exponential backoff
+    s = requests.Session()
+
+    retries = Retry(total=5,
+                    backoff_factor=1,
+                    status_forcelist=[500],
+                    raise_on_status=False)
+
+    s.mount('http://', HTTPAdapter(max_retries=retries))
+
     logger.debug(f"Getting data for slot {slot}, public key {address}")
     if prysm_api:
         encoded_pubkey = b64encode(codecs.decode(address[2:], "hex"))
         epoch_for_slot = math.floor(slot / SLOTS_IN_EPOCH)
 
-        resp = requests.get(
+        resp = s.get(
             f"http://{host}:{port}/eth/v1alpha1/validators/balances",
             params={"epoch": epoch_for_slot, "publicKeys": encoded_pubkey},
         )
     else:
-        resp = requests.get(
+        resp = s.get(
             f"http://{host}:{port}/eth/v1/beacon/states/{slot}/validator_balances",
             params={"id": address},
         )
 
     if resp.status_code != 200:
-        logger.error(resp.content.decode())
         raise Exception(
-            f"Beacon node returned non-200 status code for request {resp.request.url}"
+            f"Failed to retrieve data from beacon node - request {resp.request.url} -> "
+            f"[{resp.status_code}] [{resp.content.decode()}]"
         )
 
     if prysm_api:
