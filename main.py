@@ -96,6 +96,9 @@ def get_datapoints() -> dict:
     current_date = start_date
     while current_date < end_date:
         last_slot_datetime = current_date.replace(hour=23, minute=59, second=59)
+        current_datetime = datetime.datetime.now()
+        last_slot_datetime = min(last_slot_datetime, current_datetime)
+
         last_slot_no = math.floor(
             (last_slot_datetime - GENESIS_DATETIME).total_seconds() / 12
         )
