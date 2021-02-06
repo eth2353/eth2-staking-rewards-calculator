@@ -1,14 +1,12 @@
-ETH2_ADDRESSES:
-  - "0xa1d1ad0714035353258038e964ae9675dc0252ee22cea896825c01458e1807bfad2f9969338798548d9858a571f7425c"
-  - "0xb2ff4716ed345b05dd1dfc6a5a9fa70856d8c75dcc9e881dd2f766d5f891326f0d10e96f3a444ce6c912b69c22c6754d"
-  - "0x8e323fd501233cd4d1b9d63d74076a38de50f2f584b001a5ac2412e4e46adb26d2fb2a6041e7e8c57cd4df0916729219"
+VALIDATOR_INDEXES:
+  - 1
+  - 2
+  - 3
+  - 4
+  - 5
 
 START_DATE: "2020-12-01"
 END_DATE: "2020-12-31"  # Inclusive
-
-# The INITIAL_BALANCE is used to calculate the reward for the first day (START_DATE).
-# Adjust if needed.
-INITIAL_BALANCE: 32
 
 # Any CoinGecko-supported currency
 CURRENCY: "EUR"
@@ -16,11 +14,15 @@ CURRENCY: "EUR"
 BEACON_NODE:
   # Enter the hostname or IP address of the beacon node (e.g. localhost or 192.168.1.123)
   HOST: localhost
-  # Enter the HTTP port of the beacon node
+  # Enter the HTTP/RPC port of the beacon node
+  # Defaults - Lighthouse 5052, Prysm 3500, Teku 5051, Nimbus 9190
   PORT: 5052
   # Set this to True if running a Prysm beacon node (it uses a different API)
-  # Should be False for Lighthouse, Teku
+  # Should be set to False for Lighthouse, Teku, Nimbus
   PRYSM_API: False
+  # Set this to True if running a Nimbus beacon node (it uses a different API)
+  # Should be set to False for Lighthouse, Prysm, Teku
+  NIMBUS_API: False
   # The amount of concurrent requests to make to the beacon node
   # (making more than 1 request at once makes things faster, but is
   # also more demanding on your beacon node)
