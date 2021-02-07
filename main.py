@@ -241,7 +241,7 @@ def write_rewards_to_file(datapoints: List[DataPoint]):
 
     for validator_index in tqdm(validator_indexes, desc="Writing rewards to file"):
         with open(f"rewards_{validator_index}.csv", "w") as csvfile:
-            writer = csv.writer(csvfile)
+            writer = csv.writer(csvfile, delimiter=";")
             writer.writerow(
                 [
                     "Date",
