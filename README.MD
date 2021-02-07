@@ -19,7 +19,7 @@ The currency can be changed in the [config file](config.yml) .
 - installed Python dependencies (`pip install -r requirements.txt`)
 
 ## Usage
-`python main.py`
+`python3 main.py`
 
 The script:
 
@@ -38,8 +38,9 @@ The script:
 - [x] Prysm v1.1.0 (set `PRYSM_API` to True in the config file)
 - [x] Teku v21.1.1
   - Teku prunes chain data by default - if you're getting 404 errors,
-  make sure you are running Teku in archive node to be able to retrieve
-  balances for finalized epochs (`--data-storage-mode=archive`)
+  make sure you are running Teku in
+  [archive](https://docs.teku.consensys.net/en/latest/Reference/CLI/CLI-Syntax/#data-storage-mode)
+  mode to be able to retrieve balances for finalized epochs (`--data-storage-mode=archive`)
 - [x] Nimbus v1.0.7 (set `NIMBUS_API` to True in the config file)
 
 ## Donation
