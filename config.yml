@@ -23,6 +23,9 @@ END_DATE: "2020-12-31"  # Inclusive
 # Any CoinGecko-supported currency
 CURRENCY: "EUR"
 
+# Can be set to DEBUG, INFO, WARNING, ERROR, CRITICAL
+LOG_LEVEL: "INFO"
+
 BEACON_NODE:
   # Enter the hostname or IP address of the beacon node (e.g. localhost or 192.168.1.123)
   HOST: localhost

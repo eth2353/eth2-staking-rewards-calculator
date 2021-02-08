@@ -23,14 +23,14 @@ SLOT_TIME = 12
 SLOTS_IN_EPOCH = 32
 GENESIS_DATETIME = datetime.datetime.fromtimestamp(1606824023)
 
+with open("config.yml") as f:
+    config = safe_load(f)
+
 logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s %(message)s", stream=sys.stdout
+    level=config["LOG_LEVEL"], format="%(asctime)s %(message)s", stream=sys.stdout
 )
 
 logger = logging.getLogger()
-
-with open("config.yml") as f:
-    config = safe_load(f)
 
 # Retry all HTTP requests a few times with exponential backoff
 s = requests.Session()
