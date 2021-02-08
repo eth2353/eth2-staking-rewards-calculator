@@ -181,7 +181,9 @@ def get_validators() -> List[Validator]:
     if type(config["ETH1_ADDRESSES"]) == list:
         for eth1_address in config["ETH1_ADDRESSES"]:
             for validator in get_validators_for_eth1_address(eth1_address):
-                logger.info(f"Added validator from ETH1_ADDRESSES [{eth1_address}] - {validator}")
+                logger.info(
+                    f"Added validator from ETH1_ADDRESSES [{eth1_address}] - {validator}"
+                )
                 validators.add(validator)
 
     # Remove validators with index set to 0 - pending validators with no processed eth2 deposit
