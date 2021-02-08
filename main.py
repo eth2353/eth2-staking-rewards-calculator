@@ -398,7 +398,10 @@ def write_rewards_to_file(datapoints: List[DataPoint]):
             continue
 
         with open(f"rewards_{validator_index}_{eth2_address}.csv", "w") as csvfile:
-            writer = csv.writer(csvfile, delimiter=";")
+            writer = csv.writer(csvfile, delimiter=config["CSV"]["DELIMITER"])
+            if config["CSV"]["ADD_SEP_LINE"]:
+                csvfile.write(f"sep={writer.dialect.delimiter}\n")
+
             writer.writerow(
                 [
                     "Date",

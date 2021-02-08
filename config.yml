@@ -42,3 +42,11 @@ BEACON_NODE:
   # (making more than 1 request at once makes things faster, but is
   # also more demanding on your beacon node)
   CONCURRENT_REQUESTS: 5
+
+CSV:
+  # Adds a line at the top of the file which contains the separator
+  # used in the CSV file. This helps Excel import the data from
+  # the CSV file.
+  ADD_SEP_LINE: False
+  # Specify the separator/delimiter to be used between each column
+  DELIMITER: ";"
