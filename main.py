@@ -7,6 +7,7 @@ import math
 import sys
 from base64 import b64encode, b64decode
 from collections import namedtuple
+from itertools import filterfalse
 from multiprocessing.pool import ThreadPool
 from typing import List
 
@@ -141,19 +142,55 @@ def get_validator(idx: int = None, addr: str = None) -> Validator:
         )
 
 
+def get_validators_for_eth1_address(eth1_address: str) -> List[Validator]:
+    resp = s.get(f"https://beaconcha.in/api/v1/validator/eth1/{eth1_address}")
+
+    if resp.status_code != 200:
+        raise Exception(
+            f"Failed to retrieve validators for ETH1 address {eth1_address} - {resp.content.decode()}"
+        )
+
+    data = resp.json()["data"]
+
+    vals_for_addr = []
+    for validator_data in data:
+        vals_for_addr.append(
+            Validator(
+                validator_index=int(validator_data["validatorindex"]),
+                eth2_address=validator_data["publickey"],
+            )
+        )
+
+    return vals_for_addr
+
+
 def get_validators() -> List[Validator]:
     validators = set()
     if type(config["VALIDATOR_INDEXES"]) == list:
         for index in config["VALIDATOR_INDEXES"]:
-            validators.add(get_validator(idx=index))
+            validator = get_validator(idx=index)
+            logger.info(f"Added validator from VALIDATOR_INDEXES - {validator}")
+            validators.add(validator)
 
     if type(config["ETH2_ADDRESSES"]) == list:
         for address in config["ETH2_ADDRESSES"]:
-            validators.add(get_validator(addr=address))
+            validator = get_validator(addr=address)
+            logger.info(f"Added validator from ETH2_ADDRESSES - {validator}")
+            validators.add(validator)
 
-    for v in validators:
-        logger.info(f"Validator added - {v.validator_index} / {v.eth2_address}")
-    return list(validators)
+    if type(config["ETH1_ADDRESSES"]) == list:
+        for eth1_address in config["ETH1_ADDRESSES"]:
+            for validator in get_validators_for_eth1_address(eth1_address):
+                logger.info(f"Added validator from ETH1_ADDRESSES [{eth1_address}] - {validator}")
+                validators.add(validator)
+
+    # Remove validators with index set to 0 - pending validators with no processed eth2 deposit
+    val_pending = lambda x: x.validator_index == 0
+    for v in filter(val_pending, validators):
+        logger.warning(f"Removed validator with 0 index (pending) - {v}")
+    validators = list(filterfalse(val_pending, validators))
+
+    return validators
 
 
 def get_datapoints_for_slot(slot: int) -> List[DataPoint]:
@@ -350,6 +387,16 @@ def write_rewards_to_file(datapoints: List[DataPoint]):
     for validator_index, eth2_address in tqdm(
         validators, desc="Writing rewards to file"
     ):
+        validator_datapoints = [
+            dp for dp in datapoints if dp.validator_index == validator_index
+        ]
+
+        if len(validator_datapoints) == 0:
+            logger.info(
+                f"[!] No datapoints for validator {validator_index} {eth2_address}"
+            )
+            continue
+
         with open(f"rewards_{validator_index}_{eth2_address}.csv", "w") as csvfile:
             writer = csv.writer(csvfile, delimiter=";")
             writer.writerow(
@@ -361,10 +408,6 @@ def write_rewards_to_file(datapoints: List[DataPoint]):
                     f"Income for date [{currency}]",
                 ]
             )
-
-            validator_datapoints = [
-                dp for dp in datapoints if dp.validator_index == validator_index
-            ]
 
             prev_balance = validator_datapoints[0].balance
             total_income_eth = 0
