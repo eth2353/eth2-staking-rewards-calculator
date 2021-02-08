@@ -170,12 +170,13 @@ def get_datapoints_for_slot(slot: int) -> List[DataPoint]:
             f"http://{host}:{port}/eth/v1alpha1/validators/balances",
             params={"epoch": epoch_for_slot, "indices": [validator_indexes]},
         )
-        data = resp.json()
 
         if resp.status_code != 200:
             raise Exception(
                 f"Error while fetching data from beacon node: {resp.content.decode()}"
             )
+
+        data = resp.json()
 
         datapoints = []
         for d in data["balances"]:
