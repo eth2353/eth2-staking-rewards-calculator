@@ -1,9 +1,11 @@
+import codecs
 import csv
 import datetime
 import json
 import logging
 import math
 import sys
+from base64 import b64encode, b64decode
 from collections import namedtuple
 from multiprocessing.pool import ThreadPool
 from typing import List
@@ -15,6 +17,7 @@ from urllib3.util.retry import Retry
 from yaml import safe_load
 
 DataPoint = namedtuple("DataPoint", ["validator_index", "datetime", "balance"])
+Validator = namedtuple("Validator", ["validator_index", "eth2_address"])
 SLOT_TIME = 12
 SLOTS_IN_EPOCH = 32
 GENESIS_DATETIME = datetime.datetime.fromtimestamp(1606824023)
@@ -40,17 +43,122 @@ retries = Retry(
 
 s.mount("http://", HTTPAdapter(max_retries=retries))
 
+prysm_api = config["BEACON_NODE"]["PRYSM_API"]
+nimbus_api = config["BEACON_NODE"]["NIMBUS_API"]
+if prysm_api and nimbus_api:
+    raise ValueError(f"PRYSM_API and NIMBUS_API cannot both be set to True")
+
+host = config["BEACON_NODE"]["HOST"]
+port = config["BEACON_NODE"]["PORT"]
+validators = []
+
+
+def get_validator(idx: int = None, addr: str = None) -> Validator:
+    if idx and addr:
+        raise ValueError("Both idx and addr provided to get_validator")
+    elif not (idx or addr):
+        raise ValueError("None of idx or addr provided to get_validator")
+
+    if prysm_api:
+        if addr:
+            encoded_pubkey = b64encode(codecs.decode(addr[2:], "hex"))
+            resp = s.get(
+                f"http://{host}:{port}/eth/v1alpha1/validator/index",
+                params={"public_key": encoded_pubkey},
+            )
+
+            if resp.status_code != 200:
+                raise Exception(
+                    f"Error while fetching data from beacon node: {resp.content.decode()}"
+                )
+
+            data = resp.json()
+            return Validator(validator_index=int(data["index"]), eth2_address=addr)
+        else:
+            resp = s.get(
+                f"http://{host}:{port}/eth/v1alpha1/validator",
+                params={"index": idx},
+            )
+
+            if resp.status_code != 200:
+                raise Exception(
+                    f"Error while fetching data from beacon node: {resp.content.decode()}"
+                )
+
+            data = resp.json()
+            addr = f"0x{codecs.encode(b64decode(data['publicKey']), 'hex').decode()}"
+            return Validator(validator_index=int(idx), eth2_address=addr)
+    elif nimbus_api:
+        if addr:
+            payload = json.dumps(
+                {
+                    "jsonrpc": "2.0",
+                    "method": "get_v1_beacon_states_stateId_validators_validatorId",
+                    "params": ["head", addr],
+                    "id": 1,
+                }
+            )
+        else:
+            payload = json.dumps(
+                {
+                    "jsonrpc": "2.0",
+                    "method": "get_v1_beacon_states_stateId_validators_validatorId",
+                    "params": ["head", str(idx)],
+                    "id": 1,
+                }
+            )
+        headers = {"content-type": "application/json"}
+        resp = s.post(f"http://{host}:{port}/", data=payload, headers=headers)
+
+        if resp.status_code != 200:
+            raise Exception(
+                f"Error while fetching data from beacon node: {resp.content.decode()}"
+            )
+
+        data = resp.json()["result"]
+
+        return Validator(
+            validator_index=int(data["index"]), eth2_address=data["validator"]["pubkey"]
+        )
+    else:
+        if addr:
+            resp = s.get(
+                f"http://{host}:{port}/eth/v1/beacon/states/head/validators/{addr}"
+            )
+        else:
+            resp = s.get(
+                f"http://{host}:{port}/eth/v1/beacon/states/head/validators/{idx}"
+            )
+
+        if resp.status_code != 200:
+            raise Exception(
+                f"Error while fetching data from beacon node: {resp.content.decode()}"
+            )
+
+        data = resp.json()["data"]
+        return Validator(
+            validator_index=int(data["index"]), eth2_address=data["validator"]["pubkey"]
+        )
+
+
+def get_validators() -> List[Validator]:
+    validators = set()
+    if type(config["VALIDATOR_INDEXES"]) == list:
+        for index in config["VALIDATOR_INDEXES"]:
+            validators.add(get_validator(idx=index))
+
+    if type(config["ETH2_ADDRESSES"]) == list:
+        for address in config["ETH2_ADDRESSES"]:
+            validators.add(get_validator(addr=address))
+
+    for v in validators:
+        logger.info(f"Validator added - {v.validator_index} / {v.eth2_address}")
+    return list(validators)
+
 
 def get_datapoints_for_slot(slot: int) -> List[DataPoint]:
     """Returns DataPoint objects for the specified slot."""
-    validator_indexes = config["VALIDATOR_INDEXES"]
-
-    host = config["BEACON_NODE"]["HOST"]
-    port = config["BEACON_NODE"]["PORT"]
-    prysm_api = config["BEACON_NODE"]["PRYSM_API"]
-    nimbus_api = config["BEACON_NODE"]["NIMBUS_API"]
-    if prysm_api and nimbus_api:
-        raise Exception(f"PRYSM_API and NIMBUS_API cannot both be set to True")
+    validator_indexes = [idx for idx, addr in validators]
 
     slot_datetime = GENESIS_DATETIME + datetime.timedelta(seconds=slot * SLOT_TIME)
 
@@ -215,7 +323,6 @@ def write_rewards_to_file(datapoints: List[DataPoint]):
     and writes it to a file.
     """
     currency = config["CURRENCY"]
-    validator_indexes = config["VALIDATOR_INDEXES"]
 
     eth_price = {}
     for dp in tqdm(datapoints, desc="Fetching price data from CoinGecko"):
@@ -239,8 +346,10 @@ def write_rewards_to_file(datapoints: List[DataPoint]):
                 "current_price"
             ][currency.lower()]
 
-    for validator_index in tqdm(validator_indexes, desc="Writing rewards to file"):
-        with open(f"rewards_{validator_index}.csv", "w") as csvfile:
+    for validator_index, eth2_address in tqdm(
+        validators, desc="Writing rewards to file"
+    ):
+        with open(f"rewards_{validator_index}_{eth2_address}.csv", "w") as csvfile:
             writer = csv.writer(csvfile, delimiter=";")
             writer.writerow(
                 [
@@ -284,6 +393,8 @@ def write_rewards_to_file(datapoints: List[DataPoint]):
 
 
 def main():
+    global validators
+    validators = get_validators()
     datapoints = get_all_datapoints()
     write_rewards_to_file(datapoints=datapoints)
 

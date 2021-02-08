@@ -30,7 +30,8 @@ The script:
  If you're running a Nimbus beacon node, make sure
  to set the `NIMBUS_API` config option to True.
 - pulls corresponding price data from CoinGecko
-- combines and writes these into a CSV file called `rewards_{VALIDATOR_INDEX}.csv` 
+- combines and writes these into a CSV file called
+ `rewards_{VALIDATOR_INDEX}_{ETH2_ADDRESS}.csv`
 
 ## Tested with
 
