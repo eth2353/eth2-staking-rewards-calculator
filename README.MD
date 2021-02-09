@@ -36,7 +36,7 @@ The script:
 ## Tested with
 
 - [x] Lighthouse v1.1.0
-- [x] Prysm v1.1.0 (set `PRYSM_API` to True in the config file)
+- [x] Prysm v1.2.1 (set `PRYSM_API` to True in the config file)
 - [x] Teku v21.1.1
   - Teku prunes chain data by default - if you're getting 404 errors,
   make sure you are running Teku in
