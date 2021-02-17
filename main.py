@@ -427,6 +427,9 @@ def write_rewards_to_file(datapoints: List[DataPoint]):
                     f"https://api.coingecko.com/api/v3/coins/ethereum/history",
                     params={"date": dp.datetime.strftime(format="%d-%m-%Y")},
                 )
+                if resp.status_code != 200:
+                    raise Exception(f"Non-200 status code received from CoinGecko - "
+                                    f"{resp.content.decode()}")
                 cg_data = resp.json()
             except Exception as e:
                 logger.error(
