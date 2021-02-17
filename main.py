@@ -10,6 +10,7 @@ from collections import namedtuple
 from itertools import filterfalse
 from multiprocessing.pool import ThreadPool
 from typing import List
+import re
 
 import requests
 from requests.adapters import HTTPAdapter
@@ -195,20 +196,76 @@ def get_validators() -> List[Validator]:
     return validators
 
 
-def get_datapoints_for_slot(slot: int) -> List[DataPoint]:
-    """Returns DataPoint objects for the specified slot."""
-    validator_indexes = [idx for idx, addr in validators]
+def _datapoints_prysm(slot: int, slot_datetime: datetime.datetime, validator_indexes: List[int]) -> List[DataPoint]:
+    epoch_for_slot = math.floor(slot / SLOTS_IN_EPOCH)
 
-    slot_datetime = GENESIS_DATETIME + datetime.timedelta(seconds=slot * SLOT_TIME)
+    resp = s.get(
+        f"http://{host}:{port}/eth/v1alpha1/validators/balances",
+        params={"epoch": epoch_for_slot, "indices": [validator_indexes]},
+    )
 
-    logger.debug(f"Getting data for slot {slot}")
-    if prysm_api:
-        epoch_for_slot = math.floor(slot / SLOTS_IN_EPOCH)
+    # Take care of validator indexes that are not active yet
+    while resp.status_code == 400:
+        data = resp.json()
+        m = re.match(r"^Validator index (\d+) >= balance list \d+$", data["error"])
+        if m:
+            inactive_val_index = int(m[1])
+            validator_indexes.remove(inactive_val_index)
+            if len(validator_indexes) == 0:
+                return []
+            resp = s.get(
+                f"http://{host}:{port}/eth/v1alpha1/validators/balances",
+                params={"epoch": epoch_for_slot, "indices": [validator_indexes]},
+            )
+        else:
+            raise Exception(
+                f"Error while fetching data from beacon node: {resp.content.decode()}"
+            )
 
+    if resp.status_code != 200:
+        raise Exception(
+            f"Error while fetching data from beacon node: {resp.content.decode()}"
+        )
+
+    data = resp.json()
+
+    datapoints = []
+    for d in data["balances"]:
+        datapoints.append(
+            DataPoint(
+                validator_index=int(d["index"]),
+                datetime=slot_datetime,
+                balance=int(d["balance"]) / 1000000000,
+            )
+        )
+
+    while data["nextPageToken"] != "":
         resp = s.get(
             f"http://{host}:{port}/eth/v1alpha1/validators/balances",
-            params={"epoch": epoch_for_slot, "indices": [validator_indexes]},
+            params={
+                "epoch": epoch_for_slot,
+                "indices": [validator_indexes],
+                "page_token": data["nextPageToken"],
+            },
         )
+
+        # Take care of validator indexes that are not active yet
+        while resp.status_code == 400:
+            data = resp.json()
+            m = re.match(r"^Validator index (\d+) >= balance list \d+$", data["error"])
+            if m:
+                inactive_val_index = int(m[1])
+                validator_indexes.remove(inactive_val_index)
+                if len(validator_indexes) == 0:
+                    return []
+                resp = s.get(
+                    f"http://{host}:{port}/eth/v1alpha1/validators/balances",
+                    params={"epoch": epoch_for_slot, "indices": [validator_indexes]},
+                )
+            else:
+                raise Exception(
+                    f"Error while fetching data from beacon node: {resp.content.decode()}"
+                )
 
         if resp.status_code != 200:
             raise Exception(
@@ -216,8 +273,6 @@ def get_datapoints_for_slot(slot: int) -> List[DataPoint]:
             )
 
         data = resp.json()
-
-        datapoints = []
         for d in data["balances"]:
             datapoints.append(
                 DataPoint(
@@ -226,25 +281,21 @@ def get_datapoints_for_slot(slot: int) -> List[DataPoint]:
                     balance=int(d["balance"]) / 1000000000,
                 )
             )
+    return datapoints
 
-        while data["nextPageToken"] != "":
-            resp = s.get(
-                f"http://{host}:{port}/eth/v1alpha1/validators/balances",
-                params={
-                    "epoch": epoch_for_slot,
-                    "indices": [validator_indexes],
-                    "page_token": data["nextPageToken"],
-                },
-            )
-            data = resp.json()
-            for d in data["balances"]:
-                datapoints.append(
-                    DataPoint(
-                        validator_index=int(d["index"]),
-                        datetime=slot_datetime,
-                        balance=int(d["balance"]) / 1000000000,
-                    )
-                )
+
+def get_datapoints_for_slot(slot: int) -> List[DataPoint]:
+    """Returns DataPoint objects for the specified slot."""
+    validator_indexes = [idx for idx, addr in validators]
+
+    if len(validator_indexes) == 0:
+        return []
+
+    slot_datetime = GENESIS_DATETIME + datetime.timedelta(seconds=slot * SLOT_TIME)
+
+    logger.debug(f"Getting data for slot {slot}")
+    if prysm_api:
+        datapoints = _datapoints_prysm(slot, slot_datetime, validator_indexes)
     elif nimbus_api:
         payload = json.dumps(
             {
