@@ -44,8 +44,3 @@ The script:
   mode to be able to retrieve balances for finalized epochs (`--data-storage-mode=archive`)
 - [x] Nimbus v1.0.7 (set `NIMBUS_API` to True in the config file)
 
-## Donation
-
-If this saved you some time, buy me a 🍺!
-
-![🍺](donate.png?raw=true)
