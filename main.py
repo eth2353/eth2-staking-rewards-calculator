@@ -17,12 +17,14 @@ from requests.adapters import HTTPAdapter
 from tqdm import tqdm
 from urllib3.util.retry import Retry
 from yaml import safe_load
+import pytz
 
 DataPoint = namedtuple("DataPoint", ["validator_index", "datetime", "balance"])
 Validator = namedtuple("Validator", ["validator_index", "eth2_address"])
 SLOT_TIME = 12
 SLOTS_IN_EPOCH = 32
-GENESIS_DATETIME = datetime.datetime.fromtimestamp(1606824023)
+UTC_TIMEZONE = pytz.utc
+GENESIS_DATETIME = UTC_TIMEZONE.localize(datetime.datetime.utcfromtimestamp(1606824023))
 
 with open("config.yml") as f:
     config = safe_load(f)
@@ -368,12 +370,15 @@ def get_all_datapoints() -> List[DataPoint]:
     Returns:
         A list of DataPoint objects.
     """
+    now = UTC_TIMEZONE.localize(datetime.datetime.utcnow())
     start_date = datetime.datetime.fromisoformat(config["START_DATE"])
+    start_date = UTC_TIMEZONE.localize(start_date)
     start_date = max(start_date, GENESIS_DATETIME)
     end_date = datetime.datetime.fromisoformat(config["END_DATE"]) + datetime.timedelta(
         days=1
     )
-    end_date = min(end_date, datetime.datetime.now())
+    end_date = UTC_TIMEZONE.localize(end_date)
+    end_date = min(end_date, now)
 
     # Calculate the slot numbers at which we need to retrieve the balance
     slot_numbers = []
@@ -384,7 +389,7 @@ def get_all_datapoints() -> List[DataPoint]:
     current_date = start_date
     while current_date < end_date:
         last_slot_datetime = current_date.replace(hour=23, minute=59, second=59)
-        last_slot_datetime = min(last_slot_datetime, datetime.datetime.now())
+        last_slot_datetime = min(last_slot_datetime, now)
 
         last_slot_no = slot_no_for_datetime(last_slot_datetime)
         slot_numbers.append(last_slot_no)
