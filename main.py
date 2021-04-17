@@ -46,6 +46,7 @@ retries = Retry(
 )
 
 s.mount("http://", HTTPAdapter(max_retries=retries))
+s.mount("https://", HTTPAdapter(max_retries=retries))
 
 prysm_api = config["BEACON_NODE"]["PRYSM_API"]
 nimbus_api = config["BEACON_NODE"]["NIMBUS_API"]
@@ -434,7 +435,7 @@ def write_rewards_to_file(datapoints: List[DataPoint]):
                 )
                 if resp.status_code != 200:
                     raise Exception(f"Non-200 status code received from CoinGecko - "
-                                    f"{resp.content.decode()}")
+                                    f"{resp.status_code} - {resp.content.decode()}")
                 cg_data = resp.json()
             except Exception as e:
                 logger.error(
