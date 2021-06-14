@@ -170,19 +170,19 @@ def get_validators_for_eth1_address(eth1_address: str) -> List[Validator]:
 
 def get_validators() -> List[Validator]:
     validators = set()
-    if type(config["VALIDATOR_INDEXES"]) == list:
+    if type(config.get("VALIDATOR_INDEXES")) == list:
         for index in config["VALIDATOR_INDEXES"]:
             validator = get_validator(idx=index)
             logger.info(f"Added validator from VALIDATOR_INDEXES - {validator}")
             validators.add(validator)
 
-    if type(config["ETH2_ADDRESSES"]) == list:
+    if type(config.get("ETH2_ADDRESSES")) == list:
         for address in config["ETH2_ADDRESSES"]:
             validator = get_validator(addr=address)
             logger.info(f"Added validator from ETH2_ADDRESSES - {validator}")
             validators.add(validator)
 
-    if type(config["ETH1_ADDRESSES"]) == list:
+    if type(config.get("ETH1_ADDRESSES")) == list:
         for eth1_address in config["ETH1_ADDRESSES"]:
             for validator in get_validators_for_eth1_address(eth1_address):
                 logger.info(
