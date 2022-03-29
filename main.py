@@ -48,11 +48,6 @@ retries = Retry(
 s.mount("http://", HTTPAdapter(max_retries=retries))
 s.mount("https://", HTTPAdapter(max_retries=retries))
 
-prysm_api = config["BEACON_NODE"]["PRYSM_API"]
-nimbus_api = config["BEACON_NODE"]["NIMBUS_API"]
-if prysm_api and nimbus_api:
-    raise ValueError(f"PRYSM_API and NIMBUS_API cannot both be set to True")
-
 host = config["BEACON_NODE"]["HOST"]
 port = config["BEACON_NODE"]["PORT"]
 validators = []
@@ -64,86 +59,24 @@ def get_validator(idx: int = None, addr: str = None) -> Validator:
     elif not (idx or addr):
         raise ValueError("None of idx or addr provided to get_validator")
 
-    if prysm_api:
-        if addr:
-            encoded_pubkey = b64encode(codecs.decode(addr[2:], "hex"))
-            resp = s.get(
-                f"http://{host}:{port}/eth/v1alpha1/validator/index",
-                params={"public_key": encoded_pubkey},
-            )
-
-            if resp.status_code != 200:
-                raise Exception(
-                    f"Error while fetching data from beacon node: {resp.content.decode()}"
-                )
-
-            data = resp.json()
-            return Validator(validator_index=int(data["index"]), eth2_address=addr)
-        else:
-            resp = s.get(
-                f"http://{host}:{port}/eth/v1alpha1/validator",
-                params={"index": idx},
-            )
-
-            if resp.status_code != 200:
-                raise Exception(
-                    f"Error while fetching data from beacon node: {resp.content.decode()}"
-                )
-
-            data = resp.json()
-            addr = f"0x{codecs.encode(b64decode(data['publicKey']), 'hex').decode()}"
-            return Validator(validator_index=int(idx), eth2_address=addr)
-    elif nimbus_api:
-        if addr:
-            payload = json.dumps(
-                {
-                    "jsonrpc": "2.0",
-                    "method": "get_v1_beacon_states_stateId_validators_validatorId",
-                    "params": ["head", addr],
-                    "id": 1,
-                }
-            )
-        else:
-            payload = json.dumps(
-                {
-                    "jsonrpc": "2.0",
-                    "method": "get_v1_beacon_states_stateId_validators_validatorId",
-                    "params": ["head", str(idx)],
-                    "id": 1,
-                }
-            )
-        headers = {"content-type": "application/json"}
-        resp = s.post(f"http://{host}:{port}/", data=payload, headers=headers)
-
-        if resp.status_code != 200:
-            raise Exception(
-                f"Error while fetching data from beacon node: {resp.content.decode()}"
-            )
-
-        data = resp.json()["result"]
-
-        return Validator(
-            validator_index=int(data["index"]), eth2_address=data["validator"]["pubkey"]
+    if addr:
+        resp = s.get(
+            f"http://{host}:{port}/eth/v1/beacon/states/head/validators/{addr}"
         )
     else:
-        if addr:
-            resp = s.get(
-                f"http://{host}:{port}/eth/v1/beacon/states/head/validators/{addr}"
-            )
-        else:
-            resp = s.get(
-                f"http://{host}:{port}/eth/v1/beacon/states/head/validators/{idx}"
-            )
-
-        if resp.status_code != 200:
-            raise Exception(
-                f"Error while fetching data from beacon node: {resp.content.decode()}"
-            )
-
-        data = resp.json()["data"]
-        return Validator(
-            validator_index=int(data["index"]), eth2_address=data["validator"]["pubkey"]
+        resp = s.get(
+            f"http://{host}:{port}/eth/v1/beacon/states/head/validators/{idx}"
         )
+
+    if resp.status_code != 200:
+        raise Exception(
+            f"Error while fetching data from beacon node: {resp.content.decode()}"
+        )
+
+    data = resp.json()["data"]
+    return Validator(
+        validator_index=int(data["index"]), eth2_address=data["validator"]["pubkey"]
+    )
 
 
 def get_validators_for_eth1_address(eth1_address: str) -> List[Validator]:
@@ -198,95 +131,6 @@ def get_validators() -> List[Validator]:
 
     return validators
 
-
-def _datapoints_prysm(slot: int, slot_datetime: datetime.datetime, validator_indexes: List[int]) -> List[DataPoint]:
-    epoch_for_slot = math.floor(slot / SLOTS_IN_EPOCH)
-
-    resp = s.get(
-        f"http://{host}:{port}/eth/v1alpha1/validators/balances",
-        params={"epoch": epoch_for_slot, "indices": [validator_indexes]},
-    )
-
-    # Take care of validator indexes that are not active yet
-    while resp.status_code == 400:
-        data = resp.json()
-        m = re.match(r"^Validator index (\d+) >= balance list \d+$", data["error"])
-        if m:
-            inactive_val_index = int(m[1])
-            validator_indexes.remove(inactive_val_index)
-            if len(validator_indexes) == 0:
-                return []
-            resp = s.get(
-                f"http://{host}:{port}/eth/v1alpha1/validators/balances",
-                params={"epoch": epoch_for_slot, "indices": [validator_indexes]},
-            )
-        else:
-            raise Exception(
-                f"Error while fetching data from beacon node: {resp.content.decode()}"
-            )
-
-    if resp.status_code != 200:
-        raise Exception(
-            f"Error while fetching data from beacon node: {resp.content.decode()}"
-        )
-
-    data = resp.json()
-
-    datapoints = []
-    for d in data["balances"]:
-        datapoints.append(
-            DataPoint(
-                validator_index=int(d["index"]),
-                datetime=slot_datetime,
-                balance=int(d["balance"]) / 1000000000,
-            )
-        )
-
-    while data["nextPageToken"] != "":
-        resp = s.get(
-            f"http://{host}:{port}/eth/v1alpha1/validators/balances",
-            params={
-                "epoch": epoch_for_slot,
-                "indices": [validator_indexes],
-                "page_token": data["nextPageToken"],
-            },
-        )
-
-        # Take care of validator indexes that are not active yet
-        while resp.status_code == 400:
-            data = resp.json()
-            m = re.match(r"^Validator index (\d+) >= balance list \d+$", data["error"])
-            if m:
-                inactive_val_index = int(m[1])
-                validator_indexes.remove(inactive_val_index)
-                if len(validator_indexes) == 0:
-                    return []
-                resp = s.get(
-                    f"http://{host}:{port}/eth/v1alpha1/validators/balances",
-                    params={"epoch": epoch_for_slot, "indices": [validator_indexes]},
-                )
-            else:
-                raise Exception(
-                    f"Error while fetching data from beacon node: {resp.content.decode()}"
-                )
-
-        if resp.status_code != 200:
-            raise Exception(
-                f"Error while fetching data from beacon node: {resp.content.decode()}"
-            )
-
-        data = resp.json()
-        for d in data["balances"]:
-            datapoints.append(
-                DataPoint(
-                    validator_index=int(d["index"]),
-                    datetime=slot_datetime,
-                    balance=int(d["balance"]) / 1000000000,
-                )
-            )
-    return datapoints
-
-
 def get_datapoints_for_slot(slot: int) -> List[DataPoint]:
     """Returns DataPoint objects for the specified slot."""
     validator_indexes = [idx for idx, addr in validators]
@@ -297,66 +141,29 @@ def get_datapoints_for_slot(slot: int) -> List[DataPoint]:
     slot_datetime = GENESIS_DATETIME + datetime.timedelta(seconds=slot * SLOT_TIME)
 
     logger.debug(f"Getting data for slot {slot}")
-    if prysm_api:
-        datapoints = _datapoints_prysm(slot, slot_datetime, validator_indexes)
-    elif nimbus_api:
-        payload = json.dumps(
-            {
-                "jsonrpc": "2.0",
-                "method": "get_v1_beacon_states_stateId_validator_balances",
-                "params": [str(slot)],
-                "id": validator_indexes,
-            }
-        )
-        headers = {"content-type": "application/json"}
-        resp = s.post(f"http://{host}:{port}/", data=payload, headers=headers)
 
-        if resp.status_code != 200:
-            raise Exception(
-                f"Error while fetching data from beacon node: {resp.content.decode()}"
-            )
+    resp = s.get(
+        f"http://{host}:{port}/eth/v1/beacon/states/{slot}/validator_balances"
+    )
 
-        data = resp.json()
-
-        if data["error"]:
-            raise Exception(
-                f"Error while fetching data from beacon node: {data['error']}"
-            )
-
-        data = [d for d in data["result"] if int(d["index"]) in validator_indexes]
-
-        datapoints = []
-        for d in data:
-            datapoints.append(
-                DataPoint(
-                    validator_index=int(d["index"]),
-                    datetime=slot_datetime,
-                    balance=int(d["balance"]) / 1000000000,
-                )
-            )
-    else:
-        resp = s.get(
-            f"http://{host}:{port}/eth/v1/beacon/states/{slot}/validator_balances"
+    if resp.status_code != 200:
+        raise Exception(
+            f"Error while fetching data from beacon node: {resp.content.decode()}"
         )
 
-        if resp.status_code != 200:
-            raise Exception(
-                f"Error while fetching data from beacon node: {resp.content.decode()}"
+    data = resp.json()["data"]
+
+    data = [d for d in data if int(d["index"]) in validator_indexes]
+
+    datapoints = []
+    for d in data:
+        datapoints.append(
+            DataPoint(
+                validator_index=int(d["index"]),
+                datetime=slot_datetime,
+                balance=int(d["balance"]) / 1000000000,
             )
-
-        data = resp.json()["data"]
-
-        data = [d for d in data if int(d["index"]) in validator_indexes]
-
-        datapoints = []
-        for d in data:
-            datapoints.append(
-                DataPoint(
-                    validator_index=int(d["index"]),
-                    datetime=slot_datetime,
-                    balance=int(d["balance"]) / 1000000000,
-                )
-            )
+        )
     return datapoints
 
 

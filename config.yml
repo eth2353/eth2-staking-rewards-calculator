@@ -32,12 +32,6 @@ BEACON_NODE:
   # Enter the HTTP/RPC port of the beacon node
   # Defaults - Lighthouse 5052, Prysm 3500, Teku 5051, Nimbus 9190
   PORT: 5052
-  # Set this to True if running a Prysm beacon node (it uses a different API)
-  # Should be set to False for Lighthouse, Teku, Nimbus
-  PRYSM_API: False
-  # Set this to True if running a Nimbus beacon node (it uses a different API)
-  # Should be set to False for Lighthouse, Prysm, Teku
-  NIMBUS_API: False
   # The amount of concurrent requests to make to the beacon node
   # (making more than 1 request at once makes things faster, but is
   # also more demanding on your beacon node)

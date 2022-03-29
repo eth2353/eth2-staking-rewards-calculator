@@ -24,23 +24,7 @@ The currency can be changed in the [config file](config.yml) .
 The script:
 
 - retrieves balance data from an ETH2 beacon node, using the
- parameters specified in [config.yml](config.yml) .
- If you're running a Prysm beacon node, make sure
- to set the `PRYSM_API` config option to True.
- If you're running a Nimbus beacon node, make sure
- to set the `NIMBUS_API` config option to True.
+ parameters specified in [config.yml](config.yml).
 - pulls corresponding price data from CoinGecko
 - combines and writes these into a CSV file called
  `rewards_{VALIDATOR_INDEX}_{ETH2_ADDRESS}.csv`
-
-## Tested with
-
-- [x] Lighthouse v1.1.0
-- [x] Prysm v1.2.1 (set `PRYSM_API` to True in the config file)
-- [x] Teku v21.1.1
-  - Teku prunes chain data by default - if you're getting 404 errors,
-  make sure you are running Teku in
-  [archive](https://docs.teku.consensys.net/en/latest/Reference/CLI/CLI-Syntax/#data-storage-mode)
-  mode to be able to retrieve balances for finalized epochs (`--data-storage-mode=archive`)
-- [x] Nimbus v1.0.7 (set `NIMBUS_API` to True in the config file)
-
